@@ -1,0 +1,7 @@
+.chalice/deployments/
+.chalice/venv/
+.chalice/deployed.json
+.chalice/policy*.json
+.chalice/config.json
+chalicelib/aws_settings.py
+*.pyc
