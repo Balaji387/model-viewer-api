@@ -38,6 +38,11 @@ def getModelData(modelname):
 		raise NotFoundError(modelname)
 	try:
 		json_content = json.loads(file_content)
+		uploadTime = str(json_object.last_modified).split('+')[0]
+		print uploadTime
+		json_content['modelInformation']['s3_attributes'] = {
+			'uploadTime': uploadTime
+		}
 		return json.dumps(json_content)
 	except:
 		return ChaliceViewError()
