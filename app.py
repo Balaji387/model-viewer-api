@@ -19,13 +19,30 @@ settings = {
 
 authorizer = CognitoUserPoolAuthorizer(aws_resources['userpool'], header='Authorization', provider_arns=aws_resources['arn'])
 
+def parseS3Time(dt):
+	return str(dt).split('+')[0]
+
 def getModelNames(_bucket,_prefix):
 	s3_objects_resp = s3.meta.client.list_objects(Bucket=_bucket, Prefix=_prefix)
 	s3_objects = s3_objects_resp.get('Contents', [])
 	while s3_objects_resp['IsTruncated']:
 		s3_objects_resp = s3.meta.client.list_objects(Bucket=_bucket, Prefix=_prefix, Marker=_existing_s3_objects_resp["Contents"][-1]['Key'])
 		s3_objects += s3_objects_resp.get('Contents', [])
-	return [i['Key'].replace(_prefix,"").replace(".json","") for i in s3_objects if not i['Key'] == _prefix]
+
+	result = []
+	for i in s3_objects:
+		if not i['Key'] == _prefix:
+			last_modified = parseS3Time(i['LastModified'])
+			tags = {o['Key']: o['Value'] for o in s3.meta.client.get_object_tagging(Bucket = _bucket, Key = i['Key'])['TagSet']}
+			tags['uploadTime'] = last_modified
+			modelObj = {
+				'model': i['Key'].replace(_prefix,"").replace(".json",""),
+				's3_attributes': tags
+			}
+			result.append(modelObj)
+	return result
+		
+	#return [i['Key'].replace(_prefix,"").replace(".json","") for i in s3_objects if not i['Key'] == _prefix]
 
 # @app.route('/get-model-data/{modelname}', methods=['GET'], cors=True)
 @app.route('/get-model-data/{modelname}', methods=['GET'], cors=True, authorizer=authorizer)
@@ -38,7 +55,7 @@ def getModelData(modelname):
 		raise NotFoundError(modelname)
 	try:
 		json_content = json.loads(file_content)
-		uploadTime = str(json_object.last_modified).split('+')[0]
+		uploadTime = parseS3Time(json_object.last_modified)
 		print uploadTime
 		json_content['modelInformation']['s3_attributes'] = {
 			'uploadTime': uploadTime

@@ -59,7 +59,12 @@ def validateJson(postData):
 			if (os.path.basename(obj.key)).lower() == (postData["modelInformation"]["name"] + ".json").lower():
 				raise AlreadyInBucketError
 		try:
-			mybucket.put_object(Key=settings["data-folder"] + "/" + postData["modelInformation"]["name"] + ".json", Body=json.dumps(postData))
+			#process model info and create s3 tags for filtering purposes.
+			tags = '&'.join([str(k)+"="+str(v) for k,v in postData["modelInformation"].iteritems()])
+			if tags:
+				mybucket.put_object(Key=settings["data-folder"] + "/" + postData["modelInformation"]["name"] + ".json", Body=json.dumps(postData), Tagging=tags)
+			else:	
+				mybucket.put_object(Key=settings["data-folder"] + "/" + postData["modelInformation"]["name"] + ".json", Body=json.dumps(postData))
 		except:
 			return {"success": False}
 		return {"success": True}
