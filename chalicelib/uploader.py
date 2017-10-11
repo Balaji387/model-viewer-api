@@ -36,6 +36,10 @@ class EmptyMetadataError(Error):
 class AlreadyInBucketError(Error):
   pass
 
+def timestampify(s):
+	t = datetime.now().strftime('%y%m%d_%H%M%S')
+	return s + "_" + t
+
 def validateJson(postData):
     #postData defined in app.py
 	try:
@@ -44,6 +48,7 @@ def validateJson(postData):
 			raise KeyError
 		if "units" not in postData["modelInformation"] or "name" not in postData["modelInformation"]:
 			raise MissingModelInfoKeysError
+		postData["modelInformation"]["name"] = timestampify(postData["modelInformation"]["name"])
 		valid_units = ["metric", "imperial"]
 		if postData["modelInformation"]["units"] not in valid_units:
 			raise InvalidUnitsError
