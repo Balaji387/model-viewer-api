@@ -60,6 +60,11 @@ def getModelData(modelname):
 		json_content['modelInformation']['s3_attributes'] = {
 			'uploadTime': uploadTime
 		}
+		if not type(json_content['payload']) is dict:
+			json_content['payload'] = {
+				'linearElements': json_content['payload'],
+				'planarElements': []
+			}
 		return json.dumps(json_content)
 	except:
 		return ChaliceViewError()

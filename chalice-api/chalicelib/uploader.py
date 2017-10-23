@@ -10,10 +10,12 @@ s3 = boto3.resource('s3')
 
 settings = {
 	'site-bucket': aws_resources['site-bucket'],
-	'data-folder': aws_resources['data-folder']
+	'data-folder': aws_resources['data-folder'],
+	'staging-bucket': aws_resources['staging-bucket'],
 }
 
-mybucket = s3.Bucket(settings['site-bucket'])
+source_bucket = s3.Bucket(settings['site-bucket'])
+faces_staging_bucket = s3.Bucket(settings['staging-bucket'])
 
 class Error(Exception):
   pass
@@ -53,6 +55,8 @@ def validateJson(postData):
 		if postData["modelInformation"]["units"] not in valid_units:
 			raise InvalidUnitsError
 		payload_elems = postData["payload"]
+		planar_elements = []
+		linear_elements = []
 		for i in payload_elems:
 			if "vertices" not in i.keys() or "metadata" not in i.keys():
 				raise MissingPayloadKeysError
@@ -60,16 +64,30 @@ def validateJson(postData):
 			  	raise EmptyVerticesError
 			if not i["metadata"]:
 			  	raise EmptyMetadataError
-		for obj in mybucket.objects.all():
+			if len(i["vertices"]) > 2:
+				planar_elements.append(i)
+			else:
+				linear_elements.append(i)
+		postData["payload"] = {
+			"linearElements": linear_elements,
+			"planarElements": planar_elements
+		}
+		for obj in source_bucket.objects.all():
 			if (os.path.basename(obj.key)).lower() == (postData["modelInformation"]["name"] + ".json").lower():
 				raise AlreadyInBucketError
 		try:
+			if len(planar_elements) > 0:
+				postData["modelInformation"]["destination"] = settings['site-bucket']
+				destination_bucket = faces_staging_bucket
+			else:
+				destination_bucket = source_bucket
+			
 			#process model info and create s3 tags for filtering purposes.
 			tags = '&'.join([str(k)+"="+str(v) for k,v in postData["modelInformation"].iteritems()])
 			if tags:
-				mybucket.put_object(Key=settings["data-folder"] + "/" + postData["modelInformation"]["name"] + ".json", Body=json.dumps(postData), Tagging=tags)
+				destination_bucket.put_object(Key=settings["data-folder"] + "/" + postData["modelInformation"]["name"] + ".json", Body=json.dumps(postData), Tagging=tags)
 			else:	
-				mybucket.put_object(Key=settings["data-folder"] + "/" + postData["modelInformation"]["name"] + ".json", Body=json.dumps(postData))
+				destination_bucket.put_object(Key=settings["data-folder"] + "/" + postData["modelInformation"]["name"] + ".json", Body=json.dumps(postData))
 		except:
 			return {"success": False}
 		return {"success": True}
