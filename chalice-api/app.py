@@ -7,8 +7,13 @@ import json
 import os
 import boto3
 from botocore.client import Config
+import pymongo
 
 app = Chalice(app_name=aws_resources['app'])
+
+client = pymongo.MongoClient(aws_resources['mongo_connstring'])
+db = client.rubisandbox
+collection = db.test
 
 s3 = boto3.resource('s3')
 
@@ -41,7 +46,7 @@ def getModelNames(_bucket,_prefix):
 			}
 			result.append(modelObj)
 	return result
-		
+
 	#return [i['Key'].replace(_prefix,"").replace(".json","") for i in s3_objects if not i['Key'] == _prefix]
 
 # @app.route('/get-model-data/{modelname}', methods=['GET'], cors=True)
@@ -84,3 +89,13 @@ def postModel():
 	postData = app.current_request.json_body
 	result = validateJson(postData)
 	return json.dumps(result)
+
+# @app.route('/get-status', methods=['GET'], cors=True)
+@app.route('/get-status', methods=['GET'], cors=True, authorizer=authorizer)
+def getStatus():
+	status = db.test.find_one({'name': modelname})
+	result = "latest update for " + modelname + ": status: " + str(status["status"][-1]) + "; log: " + status["log"][-1] + " at " + str(status["date"][-1])
+	if result == None:
+		return json.dumps({"error": "model not found"})
+	else:
+		return json.dumps(result)
