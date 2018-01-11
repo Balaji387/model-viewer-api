@@ -15,7 +15,7 @@ exports.handler = function(event, context, callback) {
     var objectName = keyNoFolder.slice(0, keyNoFolder.lastIndexOf('.'))
     var mongoUser = process.env.MONGO_USER;
     var mongoPw = process.env.MONGO_PASSWORD;
-    var mongoRawConnstring = process.env.MONGO_CONNSTRING;6
+    var mongoRawConnstring = process.env.MONGO_CONNSTRING;
     var mongoConnstring = "mongodb://" + mongoUser + ":" + mongoPw + "@" + mongoRawConnstring + "&authSource=admin";
 
     async.waterfall([
