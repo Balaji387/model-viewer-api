@@ -29,6 +29,7 @@ exports.handler = function(event, context, callback) {
                     function(err, response) {
                     	if (err) next(err);
                     	else {
+                            //mongo update
                         connectAndUpdateDb(objectName, 202, 'Downloaded object', mongoConnstring)
                         next(null, response)
                     	}
@@ -43,6 +44,7 @@ exports.handler = function(event, context, callback) {
                     function(err, tagResp) {
                     	if (err) next(err);
                     	else {
+                            //mongo update
                         connectAndUpdateDb(objectName, 202, 'Obtained tag set', mongoConnstring)
                     		next(null, parsedData, tagResp.TagSet)
                     	}
@@ -91,11 +93,13 @@ exports.handler = function(event, context, callback) {
                     console.error(
                         'Unable to tesselate ' + srcBucket + '/' + srcKey + ' due to an error: ' + err
                     );
+                    //mongo update
                     connectAndUpdateDb(objectName, 500, 'Unable to tesselate and upload due to an error: ' + err, mongoConnstring)
                 } else {
                     console.log(
                         'Successfully tesselated ' + srcBucket + '/' + srcKey
                     );
+                    //mongo update
                     connectAndUpdateDb(objectName, 200, 'Successfully tesselated; upload complete', mongoConnstring)
                 }
 
