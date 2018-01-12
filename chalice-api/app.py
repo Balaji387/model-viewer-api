@@ -7,8 +7,13 @@ import json
 import os
 import boto3
 from botocore.client import Config
+import pymongo
 
 app = Chalice(app_name=aws_resources['app'])
+
+client = pymongo.MongoClient(aws_resources['mongo_connstring'])
+db = client.rubisandbox
+collection = db.test
 
 s3 = boto3.resource('s3')
 
@@ -41,7 +46,7 @@ def getModelNames(_bucket,_prefix):
 			}
 			result.append(modelObj)
 	return result
-		
+
 	#return [i['Key'].replace(_prefix,"").replace(".json","") for i in s3_objects if not i['Key'] == _prefix]
 
 # @app.route('/get-model-data/{modelname}', methods=['GET'], cors=True)
@@ -81,6 +86,18 @@ def getModels():
 # @app.route('/post-model', methods=['POST'], cors=True)
 @app.route('/post-model', methods=['POST'], cors=True, authorizer=authorizer)
 def postModel():
-	postData = app.current_request.json_body
-	result = validateJson(postData)
-	return json.dumps(result)
+	try:
+		postData = app.current_request.json_body
+		result = validateJson(postData)
+		return json.dumps(result)
+	except:
+		return json.dumps({'error': 'model could not be uploaded'})
+
+@app.route('/get-model-status/{modelname}', methods=['GET'], cors=True, authorizer=authorizer)
+def getStatus(modelname):
+	try:
+		resp = db.test.find_one({'name': modelname})
+		result = json.dumps({'name' : modelname,'latestStatus': resp['status'][-1], 'latestLogMessage': resp['log'][-1]})
+		return result
+	except:
+		return json.dumps({'error': 'model not found'})
