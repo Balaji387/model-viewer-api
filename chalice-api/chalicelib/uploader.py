@@ -19,7 +19,7 @@ source_bucket = s3.Bucket(settings['site-bucket'])
 faces_staging_bucket = s3.Bucket(settings['staging-bucket'])
 
 client = pymongo.MongoClient(aws_resources['MONGO_CONNSTRING'])
-db = client.rubisandbox
+db = client[aws_resources['MONGO_DATABASE']]
 collection_name = aws_resources['MONGO_COLLECTION']
 collection = db[collection_name]
 

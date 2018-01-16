@@ -14,7 +14,7 @@ app = Chalice(app_name=aws_resources['APP'])
 collection_name = aws_resources['MONGO_COLLECTION']
 
 client = pymongo.MongoClient(aws_resources['MONGO_CONNSTRING'])
-db = client.rubisandbox
+db = client[aws_resources['MONGO_DATABASE']]
 collection = db[collection_name]
 
 s3 = boto3.resource('s3')
