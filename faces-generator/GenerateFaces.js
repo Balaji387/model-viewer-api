@@ -7,6 +7,8 @@ var MongoClient = require('mongodb').MongoClient;
 
 var s3 = new AWS.S3();
 
+var mongoCollection = process.env.MONGO_COLLECTION;
+
 exports.handler = function(event, context, callback) {
     var srcBucket = event.Records[0].s3.bucket.name;
     // Object key may have spaces or unicode non-ASCII characters.
@@ -21,20 +23,22 @@ exports.handler = function(event, context, callback) {
     async.waterfall([
             function download(next) {
                 // Download the image from S3 into a buffer.
+                console.log("in download")
                 s3.getObject({
                         Bucket: srcBucket,
                         Key: srcKey,
                         ResponseContentType: 'application/json'
                     },
-                    function(err, response) {
+                    function(err, res) {
                     	if (err) next(err);
                     	else {
-                        connectAndUpdateDb(objectName, 202, 'Downloaded object', mongoConnstring)
-                        next(null, response)
+                        connectAndUpdateDb(objectName, 202, 'Model element data received, beginning tessellation', mongoConnstring, {"next": next, "arguments": [null,res]})
+                        //next(null, res)
                     	}
                     });
                 },
             function getTagset(response, next) {
+              console.log("in tagset")
             	var parsedData = JSON.parse(response.Body.toString())
                 s3.getObjectTagging({
                         Bucket: srcBucket,
@@ -43,13 +47,14 @@ exports.handler = function(event, context, callback) {
                     function(err, tagResp) {
                     	if (err) next(err);
                     	else {
-                        connectAndUpdateDb(objectName, 202, 'Obtained tag set', mongoConnstring)
-                    		next(null, parsedData, tagResp.TagSet)
+                        connectAndUpdateDb(objectName, 202, 'Model metadata received', mongoConnstring, {"next": next, "arguments": [null,parsedData,tagResp.TagSet]})
+                    		//next(null, parsedData, tagResp.TagSet)
                     	}
                     });
             	},
 
             function tesselateAndUpload(data, tagset, next) {
+                console.log("in tesselate")
            	    if (!('payload' in data && 'planarElements' in data.payload)) {
            	    	next("invalid json file")
            	    }
@@ -91,12 +96,12 @@ exports.handler = function(event, context, callback) {
                     console.error(
                         'Unable to tesselate ' + srcBucket + '/' + srcKey + ' due to an error: ' + err
                     );
-                    connectAndUpdateDb(objectName, 500, 'Unable to tesselate and upload due to an error: ' + err, mongoConnstring)
+                    connectAndUpdateDb(objectName, 500, 'Unable to tesselate and upload model due to an error: ' + err, mongoConnstring, {})
                 } else {
                     console.log(
                         'Successfully tesselated ' + srcBucket + '/' + srcKey
                     );
-                    connectAndUpdateDb(objectName, 200, 'Successfully tesselated; upload complete', mongoConnstring)
+                    connectAndUpdateDb(objectName, 200, 'Tessellation complete, model has been successfully uploaded', mongoConnstring, {})
                 }
                 // callback(null, "message");
            	}
@@ -104,18 +109,23 @@ exports.handler = function(event, context, callback) {
     };
 
     var count = 0
-    function connectAndUpdateDb(name, newStatus, newLog, mongoConnstring_) {
+    function connectAndUpdateDb(name, newStatus, newLog, mongoConnstring_, nextContext) {
     MongoClient.connect(mongoConnstring_, function(err, db) {
       console.log("connected to mongodb");
-      var col = db.collection('test');
-      console.log("using test db");
+      var col = db.collection(mongoCollection);
       col.findOneAndUpdate({name: name},
-      {$addToSet: {'status': newStatus, 'log': newLog}},
+      {'$set': {'status': newStatus}, '$addToSet': {'log' : newLog}},
       function(err, res) {
-        if (err) next(err)
+        if (err) {
+          if ("next" in nextContext) nextContext.next(err)
+        }
+        console.log(name);
         count ++
         console.log("update # " + count + " done")
         db.close()
+        if ("next" in nextContext) {
+          nextContext.next(...nextContext.arguments)
+        }
       })
     })
   }

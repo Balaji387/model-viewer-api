@@ -2,27 +2,29 @@ from chalice import Chalice, NotFoundError, ChaliceViewError, UnauthorizedError,
 #from chalice import Chalice, NotFoundError, ChaliceViewError
 from datetime import datetime
 from chalicelib.uploader import validateJson
-from chalicelib.aws_settings import aws_resources
 import json
 import os
 import boto3
 from botocore.client import Config
 import pymongo
+from chalicelib.aws_settings import aws_resources
 
-app = Chalice(app_name=aws_resources['app'])
+app = Chalice(app_name=aws_resources['APP'])
 
-client = pymongo.MongoClient(aws_resources['mongo_connstring'])
+collection_name = aws_resources['MONGO_COLLECTION']
+
+client = pymongo.MongoClient(aws_resources['MONGO_CONNSTRING'])
 db = client.rubisandbox
-collection = db.test
+collection = db[collection_name]
 
 s3 = boto3.resource('s3')
 
 settings = {
-	'site-bucket': aws_resources['site-bucket'],
-	'data-folder': aws_resources['data-folder']
+	'site-bucket': aws_resources['SITE_BUCKET'],
+	'data-folder': aws_resources['DATA_FOLDER']
 }
 
-authorizer = CognitoUserPoolAuthorizer(aws_resources['userpool'], header='Authorization', provider_arns=aws_resources['arn'])
+authorizer = CognitoUserPoolAuthorizer(aws_resources['USERPOOL'], header='Authorization', provider_arns=aws_resources['ARN'])
 
 def parseS3Time(dt):
 	return str(dt).split('+')[0]
@@ -96,8 +98,8 @@ def postModel():
 @app.route('/get-model-status/{modelname}', methods=['GET'], cors=True, authorizer=authorizer)
 def getStatus(modelname):
 	try:
-		resp = db.test.find_one({'name': modelname})
-		result = json.dumps({'name' : modelname,'latestStatus': resp['status'][-1], 'latestLogMessage': resp['log'][-1]})
+		resp = db[collection_name].find_one({'name': modelname})
+		result = json.dumps({'name' : modelname,'latestStatus': resp['status'], 'latestLogMessage': resp['log'][-1]})
 		return result
 	except:
 		return json.dumps({'error': 'model not found'})

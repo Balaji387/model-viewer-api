@@ -2,25 +2,26 @@ from datetime import datetime
 import json
 import os
 import boto3
-from aws_settings import aws_resources
 from botocore.client import Config
 import pymongo
 import re
+from chalicelib.aws_settings import aws_resources
 
 s3 = boto3.resource('s3')
 
 settings = {
-	'site-bucket': aws_resources['site-bucket'],
-	'data-folder': aws_resources['data-folder'],
-	'staging-bucket': aws_resources['staging-bucket']
+	'site-bucket': aws_resources['SITE_BUCKET'],
+	'data-folder': aws_resources['DATA_FOLDER'],
+	'staging-bucket': aws_resources['STAGING_BUCKET']
 }
 
 source_bucket = s3.Bucket(settings['site-bucket'])
 faces_staging_bucket = s3.Bucket(settings['staging-bucket'])
 
-client = pymongo.MongoClient(aws_resources['mongo_connstring'])
+client = pymongo.MongoClient(aws_resources['MONGO_CONNSTRING'])
 db = client.rubisandbox
-collection = db.test
+collection_name = aws_resources['MONGO_COLLECTION']
+collection = db[collection_name]
 
 class Error(Exception):
   pass
@@ -51,7 +52,7 @@ class AlreadyInBucketError(Error):
 # 	return s + "_" + t
 
 def updateMongoStatus(name, new_status, new_log):
-    db.test.find_one_and_update({'name': name}, {'$addToSet': {'status': new_status, 'log' : new_log}}, upsert=True, return_document=pymongo.ReturnDocument.AFTER)
+    db[collection_name].find_one_and_update({'name': name}, {'$set': {'status': new_status}, '$addToSet': {'log' : new_log}}, upsert=True, return_document=pymongo.ReturnDocument.AFTER)
 
 def validateJson(postData):
     #postData defined in app.py
@@ -62,38 +63,38 @@ def validateJson(postData):
 		if "units" not in postData["modelInformation"] or "name" not in postData["modelInformation"]:
 			raise MissingModelInfoKeysError
 		# postData["modelInformation"]["name"] = timestampify(postData["modelInformation"]["name"])
-		print("JSON has necessary structure within modelInformation")
-		updateMongoStatus(postData["modelInformation"]["name"], 202, "JSON has necessary structure within modelInformation")
+		print("Model has necessary file metadata")
+		updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has necessary file metadata")
 		print("filename: " + postData["modelInformation"]["name"])
 		fileTimeStamp = postData["modelInformation"]["name"][-15:]
 		print(fileTimeStamp)
-		timeStampRegEx = re.compile(r'\D_\d\d\d\d\d\d_\d\d\d\d\d\d')
+		timeStampRegEx = re.compile(r'\D_\d{6}_\d{6}')
 		mo = timeStampRegEx.match(fileTimeStamp)
 		if mo == None or fileTimeStamp[1] != '_' or fileTimeStamp[8] != '_':
 			raise TimestampError
-		print("File has one timestamp appended to it")
-		updateMongoStatus(postData["modelInformation"]["name"], 202, "File has one timestamp appended to it")
+		print("Model has valid timestamp")
+		updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has valid timestamp")
 		valid_units = ["metric", "imperial"]
 		if postData["modelInformation"]["units"] not in valid_units:
 			raise InvalidUnitsError
-		print("JSON has valid units")
-		updateMongoStatus(postData["modelInformation"]["name"], 202, "JSON has valid units")
+		print("Model has valid units")
+		updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has valid units")
 		payload_elems = postData["payload"]
 		planar_elements = []
 		linear_elements = []
 		for i in payload_elems:
 			if "vertices" not in i.keys() or "metadata" not in i.keys():
 				raise MissingPayloadKeysError
-			print("JSON has necessary keys within payload")
-			updateMongoStatus(postData["modelInformation"]["name"], 202, "JSON has necessary keys within payload")
+			print("Model has valid payload structure")
+			updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has valid payload structure")
 			if not i["vertices"]:
 			  	raise EmptyVerticesError
-			print("JSON has necessary vertices")
-			updateMongoStatus(postData["modelInformation"]["name"], 202, "JSON has necessary vertices")
+			print("Model has valid list of vertices")
+			updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has valid list of vertices")
 			if not i["metadata"]:
 			  	raise EmptyMetadataError
-			print("JSON has necessary metadata")
-			updateMongoStatus(postData["modelInformation"]["name"], 202, "JSON has necessary metadata")
+			print("Model has valid element metadata")
+			updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has valid element metadata")
 			if len(i["vertices"]) > 2:
 				# has_planar_elems = True
 				planar_elements.append(i)
@@ -106,18 +107,18 @@ def validateJson(postData):
 		for obj in source_bucket.objects.all():
 			if (os.path.basename(obj.key)).lower() == (postData["modelInformation"]["name"] + ".json").lower():
 				raise AlreadyInBucketError
-			print("JSON has a unique filename")
-			updateMongoStatus(postData["modelInformation"]["name"], 202, "JSON has a unique filename")
+			print("Model has a unique filename")
+			updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has a unique filename")
 		try:
 			if len(planar_elements) > 0:
 				postData["modelInformation"]["destination"] = settings['site-bucket']
 				destination_bucket = faces_staging_bucket
-				print("JSON is valid; waiting for tesselation")
-				updateMongoStatus(postData["modelInformation"]["name"], 202, "JSON is valid; waiting for tesselation")
+				print("Model has been uploaded to staging area, waiting for tessellation")
+				updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has been uploaded to staging area, waiting for tessellation")
 			else:
 				destination_bucket = source_bucket
-				print("Success, JSON upload is complete")
-				updateMongoStatus(postData["modelInformation"]["name"], 200, "Success, JSON upload is complete")
+				print("Model has been successfully uploaded")
+				updateMongoStatus(postData["modelInformation"]["name"], 200, "Model has been successfully uploaded")
 			#process model info and create s3 tags for filtering purposes.
 			copy_modelinfo_dict = eval(repr(postData["modelInformation"]))
 			copy_modelinfo_dict.pop('untagged', None)
@@ -140,7 +141,7 @@ def validateJson(postData):
 		return {"error": "'modelInformation' must contain 'units' and 'name'"}
 	except TimestampError:
 		print("error--timestamp is either missing or has been manually appended to file")
-		updateMongoStatus(postData["modelInformation"]["name"], 500, "error: timestamp is either missing or has been manually appended to file")
+		updateMongoStatus(postData["modelInformation"]["name"], 500, "error: timestamp is either missing or has been manually appended to file.")
 		return {"error": "timestamp is either missing or has been manually appended to file"}
 	except InvalidUnitsError:
 		print("error--'units' values must be either 'imperial' or 'metric'")
