@@ -82,29 +82,28 @@ def validateJson(postData):
 		payload_elems = postData["payload"]
 		planar_elements = []
 		linear_elements = []
+		updateMongoStatus(postData["modelInformation"]["name"], 202, "Preparing to check model's payload structure")
 		for i in payload_elems:
 			if "vertices" not in i.keys() or "metadata" not in i.keys():
 				raise MissingPayloadKeysError
-			print("Model has valid payload structure")
-			updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has valid payload structure")
+			# print("Model has valid payload structure")
 			if not i["vertices"]:
 			  	raise EmptyVerticesError
-			print("Model has valid list of vertices")
-			updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has valid list of vertices")
+			# print("Model has valid list of vertices")
 			if not i["metadata"]:
 			  	raise EmptyMetadataError
-			print("Model has valid element metadata")
-			updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has valid element metadata")
+			# print("Model has valid element metadata")
 			if len(i["vertices"]) > 2:
-				# has_planar_elems = True
 				planar_elements.append(i)
 			else:
 				linear_elements.append(i)
+		updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has valid payload structure")
 		postData["payload"] = {
 			"linearElements": linear_elements,
 			"planarElements": planar_elements
 		}
 		for obj in source_bucket.objects.all():
+			print("in func testing unique name")
 			if (os.path.basename(obj.key)).lower() == (postData["modelInformation"]["name"] + ".json").lower():
 				raise AlreadyInBucketError
 			print("Model has a unique filename")
