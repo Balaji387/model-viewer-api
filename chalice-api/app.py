@@ -103,3 +103,43 @@ def getStatus(modelname):
 		return result
 	except:
 		return json.dumps({'error': 'model not found'})
+
+# "http://api.github.com/repos/lakopite/three-polymer-wireframe/git/refs/head/master"
+@app.route('/get-latest-fe-commit', methods=['GET'], cors=True, authorizer=authorizer)
+def getLatestFeCommit():
+	try:
+		resp = app.current_request.json_body
+		return json.dumps(resp)
+	except:
+		return json.dumps({'error': 'an error occured while trying to retrieve the latest t-p-w commit to Github'})
+
+# "http://api.github.com/repos/lakopite/three-polymer-wireframe/git/commits/{shaId}
+@app.route('/get-latest-fe-commit-date', methods=['GET'], cors=True, authorizer=authorizer)
+def getLatestFeCommitDate(sha):
+	try:
+		resp = app.current_request.json_body
+		date = resp.author.date
+		display_date = date[:11]
+		return json.dumps(display_date)
+	except:
+		return json.dumps({'error': 'an error occured while trying to retrieve the date for the latest t-p-w commit to Github'})
+
+# "http://api.github.com/repos/lakopite/model-viewer-api/git/refs/head/master"
+@app.route('/get-latest-be-commit', methods=['GET'], cors=True, authorizer=authorizer)
+def getLatestBeCommit():
+	try:
+		resp = app.current_request.json_body
+		return json.dumps(resp)
+	except:
+		return json.dumps({'error': 'an error occured while trying to retrieve the latest model-viewer-api to Github'})
+
+# "http://api.github.com/repos/lakopite/model-viewer-api/git/commits/{shaId}
+@app.route('/get-latest-be-commit-date', methods=['GET'], cors=True, authorizer=authorizer)
+def getLatestBeCommitDate(sha):
+	try:
+		resp = app.current_request.json_body
+		date = resp.author.date
+		display_date = date[:11]
+		return json.dumps(display_date)
+	except:
+		return json.dumps({'error': 'an error occured while trying to retrieve the date for the latest model-viewer-api commit to Github'})
