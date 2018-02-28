@@ -59,7 +59,7 @@ exports.handler = function(event, context, callback) {
            	    	next("invalid json file")
            	    }
            	    for (var i=0; i < data.payload.planarElements.length; i++) {
-           	    	data.payload.planarElements[i].faceVertices = [];
+                  data.payload.planarElements[i].faceVertices = [];
            	    	var _vertices = [];
            	    	for (var v=0; v < data.payload.planarElements[i].vertices.length; v++) {
            	    		_vertices.push(new THREE.Vector3(...data.payload.planarElements[i].vertices[v]));
@@ -71,7 +71,16 @@ exports.handler = function(event, context, callback) {
            	    	}
            	    	var shellShape = new THREE.Shape(_vertices);
            	    	var shellGeo = new THREE.ShapeGeometry(shellShape)
-           	    	data.payload.planarElements[i].faceVertices = _.map(shellGeo.faces, function(f) {return [f.a,f.b,f.c]});
+                  var shellFaces = shellGeo.faces 
+                  if (_.isEmpty(shellFaces)) {
+                    //the element is a vertical wall, shape geometry cannot tesselate
+                    shellFaces = rotationTesselation(_vertices)
+                    if (_.isEmpty(shellFaces)) {
+                      console.log("WARNING: No faces could be generated for the element at index: " + i)
+                      console.log(_vertices)
+                    }
+                  }
+           	    	data.payload.planarElements[i].faceVertices = _.map(shellFaces, function(f) {return [f.a,f.b,f.c]});
            	    }
            	    var tagMap = _.reduce(tagset, function(r,o) {
            	    	r[o.Key] = o.Value
@@ -108,24 +117,45 @@ exports.handler = function(event, context, callback) {
         );
     };
 
-    var count = 0
     function connectAndUpdateDb(name, newStatus, newLog, mongoConnstring_, nextContext) {
-    MongoClient.connect(mongoConnstring_, function(err, db) {
-      console.log("connected to mongodb");
-      var col = db.collection(mongoCollection);
-      col.findOneAndUpdate({name: name},
-      {'$set': {'status': newStatus}, '$addToSet': {'log' : newLog}},
-      function(err, res) {
-        if (err) {
-          if ("next" in nextContext) nextContext.next(err)
-        }
-        console.log(name);
-        count ++
-        console.log("update # " + count + " done")
-        db.close()
-        if ("next" in nextContext) {
-          nextContext.next(...nextContext.arguments)
-        }
+      MongoClient.connect(mongoConnstring_, function(err, db) {
+        console.log("connected to mongodb");
+        var col = db.collection(mongoCollection);
+        col.findOneAndUpdate({name: name},
+        {'$set': {'status': newStatus}, '$addToSet': {'log' : newLog}},
+        function(err, res) {
+          if (err) {
+            if ("next" in nextContext) nextContext.next(err)
+          }
+          db.close()
+          if ("next" in nextContext) {
+            nextContext.next(...nextContext.arguments)
+          }
+        })
       })
-    })
-  }
+    }
+
+    function rotationTesselation(_vertices) {
+      var _faces = []
+      if (_vertices.length >= 3) {
+        for (var v=0; v < _vertices.length-1; v++) {
+          var ref = _vertices[v]
+          for (var i=0; i < _vertices.length-1; i++) {
+            if (v != i) {
+              vector = new THREE.Vector3(_vertices[i].x - ref.x, _vertices[i].y - ref.y, _vertices[i].z - ref.z);
+              if (vector.z === 0) break;
+            }
+          }
+          if (vector.z === 0) break;
+        }
+        if (vector.z === 0) {
+          for (var i=0; i < _vertices.length; i++) {
+            _vertices[i].applyAxisAngle(vector.normalize(), Math.PI/2)
+          }
+          var rotatedShape = new THREE.Shape(_vertices);
+          var rotatedGeo = new THREE.ShapeGeometry(rotatedShape)
+          _faces = rotatedGeo.faces
+        }
+      }
+      return _faces
+    }
