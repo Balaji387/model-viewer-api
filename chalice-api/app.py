@@ -29,6 +29,9 @@ authorizer = CognitoUserPoolAuthorizer(aws_resources['USERPOOL'], header='Author
 def parseS3Time(dt):
 	return str(dt).split('+')[0]
 
+def modelExists(_modelname):
+	return any(x['model'] == _modelname for x in getModelNames(settings['site-bucket'],settings['data-folder']+"/"))
+
 def getModelNames(_bucket,_prefix):
 	s3_objects_resp = s3.meta.client.list_objects(Bucket=_bucket, Prefix=_prefix)
 	s3_objects = s3_objects_resp.get('Contents', [])
@@ -50,6 +53,7 @@ def getModelNames(_bucket,_prefix):
 	return result
 
 	#return [i['Key'].replace(_prefix,"").replace(".json","") for i in s3_objects if not i['Key'] == _prefix]
+
 
 # @app.route('/get-model-data/{modelname}', methods=['GET'], cors=True)
 @app.route('/get-model-data/{modelname}', methods=['GET'], cors=True, authorizer=authorizer)
@@ -79,11 +83,22 @@ def getModelData(modelname):
 # @app.route('/get-models', methods=['GET'], cors=True)
 @app.route('/get-models', methods=['GET'], cors=True, authorizer=authorizer)
 def getModels():
-    try:
-    	result = json.dumps(getModelNames(settings['site-bucket'],settings['data-folder']+"/"))
-    	return result
-    except:
-    	raise ChaliceViewError()
+	try:
+		result = json.dumps(getModelNames(settings['site-bucket'],settings['data-folder']+"/"))
+		return result
+	except:
+		raise ChaliceViewError()
+
+@app.route('/archive-model/{modelname}', methods=['GET'], cors=True, authorizer=authorizer)
+def archiveModel(modelname):
+	try:
+		if modelExists(modelname):
+			s3.Object(settings['site-bucket'],"archive/"+modelname+".json").copy_from(CopySource=settings['site-bucket']+"/"+settings['data-folder']+"/"+modelname+".json")
+			s3.Object(settings['site-bucket'],settings['data-folder']+"/"+modelname+".json").delete()
+			return json.dumps({'success': True})
+		return json.dumps({'success': False, 'error': 'does not exist: '+modelname})
+	except:
+		return json.dumps({'success': False, 'error': 'error archiving '+modelname})
 
 # @app.route('/post-model', methods=['POST'], cors=True)
 @app.route('/post-model', methods=['POST'], cors=True, authorizer=authorizer)
