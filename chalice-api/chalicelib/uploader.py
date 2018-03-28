@@ -21,31 +21,30 @@ faces_staging_bucket = s3.Bucket(settings['staging-bucket'])
 client = pymongo.MongoClient(aws_resources['MONGO_CONNSTRING'])
 db = client[aws_resources['MONGO_DATABASE']]
 collection_name = aws_resources['MONGO_COLLECTION']
-collection = db[collection_name]
 
 class Error(Exception):
-  pass
+ 	pass
 
 class MissingModelInfoKeysError(Error):
-  pass
+ 	pass
 
 class TimestampError(Error):
 	pass
 
 class InvalidUnitsError(Error):
-  pass
+ 	pass
 
 class MissingPayloadKeysError(Error):
-  pass
+ 	pass
 
 class EmptyVerticesError(Error):
-  pass
+ 	pass
 
 class EmptyMetadataError(Error):
-  pass
+ 	pass
 
 class AlreadyInBucketError(Error):
-  pass
+ 	pass
 
 # def timestampify(s):
 # 	t = datetime.now().strftime('%y%m%d_%H%M%S')
@@ -103,33 +102,43 @@ def validateJson(postData):
 			"planarElements": planar_elements
 		}
 		for obj in source_bucket.objects.all():
-			print("in func testing unique name")
+			#print("in func testing unique name")
 			if (os.path.basename(obj.key)).lower() == (postData["modelInformation"]["name"] + ".json").lower():
 				raise AlreadyInBucketError
-			print("Model has a unique filename")
+			#print("Model has a unique filename")
 			updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has a unique filename")
 		try:
 			if len(planar_elements) > 0:
 				postData["modelInformation"]["destination"] = settings['site-bucket']
 				destination_bucket = faces_staging_bucket
 				print("Model has been uploaded to staging area, waiting for tessellation")
-				updateMongoStatus(postData["modelInformation"]["name"], 202, "Model has been uploaded to staging area, waiting for tessellation")
+				final_status_code = {
+					"code": 202,
+					"status": "Model waiting for tessellation"
+				}
 			else:
 				destination_bucket = source_bucket
 				print("Model has been successfully uploaded")
-				updateMongoStatus(postData["modelInformation"]["name"], 200, "Model has been successfully uploaded")
+				final_status_code = {
+					"code": 200,
+					"status": "Model has been successfully uploaded"
+				}
 			#process model info and create s3 tags for filtering purposes.
 			copy_modelinfo_dict = eval(repr(postData["modelInformation"]))
 			copy_modelinfo_dict.pop('untagged', None)
 			tags = '&'.join([str(k)+"="+str(v) for k,v in copy_modelinfo_dict.iteritems()])
 			print(tags)
+			updateMongoStatus(postData["modelInformation"]["name"], 202, "Valid model confirmed, uploading...")
 			if tags:
 				destination_bucket.put_object(Key=settings["data-folder"] + "/" + postData["modelInformation"]["name"] + ".json", Body=json.dumps(postData), Tagging=tags)
 			else:
 				destination_bucket.put_object(Key=settings["data-folder"] + "/" + postData["modelInformation"]["name"] + ".json", Body=json.dumps(postData))
 		except:
+			updateMongoStatus(postData["modelInformation"]["name"], 500, "Unknown error in data transfer")
 			return {"success": False}
+		updateMongoStatus(postData["modelInformation"]["name"], final_status_code['code'], final_status_code['status'])
 		return {"success": True}
+
 	except KeyError:
 		print("error--'modelInformation' and 'payload' properties are required")
 		updateMongoStatus(postData["modelInformation"]["name"], 500, "error: 'modelInformation' and 'payload' properties are required")

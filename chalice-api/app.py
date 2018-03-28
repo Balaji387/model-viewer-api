@@ -15,7 +15,6 @@ collection_name = aws_resources['MONGO_COLLECTION']
 
 client = pymongo.MongoClient(aws_resources['MONGO_CONNSTRING'])
 db = client[aws_resources['MONGO_DATABASE']]
-collection = db[collection_name]
 
 s3 = boto3.resource('s3')
 
@@ -109,6 +108,7 @@ def postModel():
 		return json.dumps(result)
 	except:
 		return json.dumps({'error': 'model could not be uploaded'})
+
 
 @app.route('/get-model-status/{modelname}', methods=['GET'], cors=True, authorizer=authorizer)
 def getStatus(modelname):
